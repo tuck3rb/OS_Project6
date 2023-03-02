@@ -1,43 +1,10 @@
-// NOTES from class
-
-// Test using web browser or Webget (but introduce correct port nums to Webget)
-
-// Important thing: localhost:8888
-
-// Look at TcpListener https://doc.rust-lang.org/std/net/struct.TcpListener.html
-// First example is the exact structure we should use
-// don't forget for stream in listener.incoming()...
-
-// Things become difficult quickly if we have to deal with multiple clients
-// We could do a fork in the for loop in main to handle multiple requests
-// But we could do a cheaper approach (less space and cpu) called threading
-// Threading the server is the assignment
-// Reference thread_demo.rs for the threading part of this assignment
-
-// Introduce lock system like thread demo
-// When lock goes out of scope, it is released
-
-// to start get command line arguments in a vec
-
-// we will be talking a lot ab atomic 
-
-// it is hard to get the message from the client
-// use read directly on the socket
-// only want to return a slice of the buffer so 
-// look for a sequence of two new lines (\r\n\r\n or \n\n)
-
-// Don't have loops after you claim a lock
-
-
-
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
-fn handle_client(mut stream: TcpStream) {
-    let mut total_requests = 0;
-    let mut valid_requests = 0;
+fn handle_client(mut stream: TcpStream, total_requests: Arc<Mutex<u32>>, valid_requests: Arc<Mutex<u32>>){
 
     let peer_ip = stream.peer_addr().unwrap();
     println!("Received connection from: {}", peer_ip);
@@ -70,7 +37,8 @@ fn handle_client(mut stream: TcpStream) {
 
     let path = request_line.split_whitespace().nth(1).unwrap();
     // increment total request counter
-    total_requests += 1;
+    let mut total_requests = total_requests.lock().unwrap();
+    *total_requests += 1;
 
     let mut response = String::new();
     let path_buf = PathBuf::from(path);
@@ -83,6 +51,7 @@ fn handle_client(mut stream: TcpStream) {
     // call current dir again and make sure it is a parent
     let current_dir = std::env::current_dir().unwrap();
 
+    // println!("cp: {}", candidate_path.display());
     // if subordanate
     if candidate_path.starts_with(std::env::current_dir().unwrap()) {
         // if file does not exist
@@ -92,18 +61,14 @@ fn handle_client(mut stream: TcpStream) {
             let contents = std::fs::read_to_string(&candidate_path).unwrap();
             response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: {}\r\n\r\n<html>\r\n<body>\r\n<h1>Message received</h1>\r\nRequested file: {}<br>\r\n</body>\r\n</html>\r\n",
-                msg.len(), contents
+                contents.len(), contents
                 // SEND BACK THE CONTENTS OF THE FILE?
             );
-            valid_requests += 1;
+            let mut valid_requests = valid_requests.lock().unwrap();
+            *valid_requests += 1;
         }
     } else {
         response = "HTTP/1.1 403 Forbidden\r\n\r\n".to_string();
-        // response = format!(
-        //     "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: {}\r\n\r\n<html>\r\n<body>\r\n<h1>Message received</h1>\r\nRequested file: {}<br>\r\n</body>\r\n</html>\r\n",
-        //     msg.len(), path
-        //     // SEND BACK THE CONTENTS OF THE FILE?
-        // );
     }
 
     println!("Response: {}", response);
@@ -113,12 +78,16 @@ fn handle_client(mut stream: TcpStream) {
     stream.flush().unwrap();
 
     // print both counts
-    println!("Valid requests: {}", valid_requests);
-    println!("Total requests: {}", total_requests);
+    println!("Valid requests: {}", *valid_requests.lock().unwrap());
+    println!("Total requests: {}", *total_requests);
 
 }
 
 fn main() -> std::io::Result<()> {
+
+    let total_requests = Arc::new(Mutex::new(0));
+    let valid_requests = Arc::new(Mutex::new(0));
+    
     let listener = TcpListener::bind("127.0.0.1:8888")?;
 
     // accept connections and process them serially
@@ -126,32 +95,16 @@ fn main() -> std::io::Result<()> {
         
         let stream = stream?;
 
-        thread::spawn(move || {
-            handle_client(stream);
+        thread::spawn({
+            let total_requests = total_requests.clone();
+            let valid_requests = valid_requests.clone();
+        
+            move || {
+                handle_client(stream, total_requests, valid_requests);
+            }
         });
-
-        // if this is a valid request and a request for a file, send back the contents in a .txt file
-
+        
     }
 
     Ok(())
 }
-
-
-
-// OG CODE!!! -- Ferrer says it works on his end
-
-// use std::net::{TcpListener, TcpStream};
-
-// fn handle_client(stream: TcpStream) {
-//     let peer_ip = stream.peer_addr().unwrap();
-//     println!("Received connection from: {}", peer_ip);
-// }
-// fn main() -> std::io::Result<()> {
-//     let listener = TcpListener::bind("127.0.0.1:8888")?;
-//     // accept connections and process them serially
-//     for stream in listener.incoming() {
-//         handle_client(stream?);
-//     }
-//     Ok(())
-// }
