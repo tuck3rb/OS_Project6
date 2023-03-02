@@ -53,6 +53,9 @@ fn handle_client(mut stream: TcpStream, total_requests: Arc<Mutex<u32>>, valid_r
 
     // println!("cp: {}", candidate_path.display());
     // if subordanate
+    println!("Here: {}", std::env::current_dir().unwrap().display());
+    println!("cp: {}", candidate_path.display());
+
     if candidate_path.starts_with(std::env::current_dir().unwrap()) {
         // if file does not exist
         if !candidate_path.exists() {
@@ -62,7 +65,6 @@ fn handle_client(mut stream: TcpStream, total_requests: Arc<Mutex<u32>>, valid_r
             response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: {}\r\n\r\n<html>\r\n<body>\r\n<h1>Message received</h1>\r\nRequested file: {}<br>\r\n</body>\r\n</html>\r\n",
                 contents.len(), contents
-                // SEND BACK THE CONTENTS OF THE FILE?
             );
             let mut valid_requests = valid_requests.lock().unwrap();
             *valid_requests += 1;
