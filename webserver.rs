@@ -45,8 +45,10 @@ fn handle_client(mut stream: TcpStream, total_requests: Arc<Mutex<u32>>, valid_r
 
     // Validating
     let mut candidate_path = std::env::current_dir().unwrap();
-    for i in path_buf.components() {
+    println!("cp1: {}", candidate_path.display());
+    for i in path_buf.components().skip(1) {
         candidate_path.push(i);
+        println!("i: {:?} cp: {}", i, candidate_path.display());
     }
     // call current dir again and make sure it is a parent
     let current_dir = std::env::current_dir().unwrap();
@@ -54,7 +56,7 @@ fn handle_client(mut stream: TcpStream, total_requests: Arc<Mutex<u32>>, valid_r
     // println!("cp: {}", candidate_path.display());
     // if subordanate
     println!("Here: {}", std::env::current_dir().unwrap().display());
-    println!("cp: {}", candidate_path.display());
+    println!("cp2: {}", candidate_path.display());
 
     if candidate_path.starts_with(std::env::current_dir().unwrap()) {
         // if file does not exist
